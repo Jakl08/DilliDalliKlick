@@ -8,10 +8,6 @@ build/
 .venv/
 venv/
 
-# Node / Electron (removed)
-node_modules/
-out/
-
 # OS
 .DS_Store
 *.log

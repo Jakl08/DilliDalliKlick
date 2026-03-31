@@ -2,8 +2,8 @@
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
 
 from dillidalliklick.constants import theme
@@ -11,6 +11,8 @@ from dillidalliklick.constants import theme
 
 class MenuWindow(QWidget):
     """Application entry screen with navigation buttons."""
+
+    _CC_LICENSE_URL = "https://creativecommons.org/share-your-work/cclicenses/"
 
     def __init__(
         self,
@@ -44,6 +46,11 @@ class MenuWindow(QWidget):
         # Update picker label color and refresh all scheme buttons
         if hasattr(self, "_picker_label"):
             self._picker_label.setStyleSheet(f"font-size: 12px; color: {theme.TEXT_SECONDARY};")
+        if hasattr(self, "_cc_label"):
+            self._cc_label.setStyleSheet(f"font-size: 12px; color: {theme.TEXT_MUTED};")
+            self._cc_label.setText(
+                f'<a href="{self._CC_LICENSE_URL}" style="color:{theme.TEXT_MUTED}; text-decoration:none;">CC-BY-NC</a>'
+            )
         self._refresh_scheme_buttons()
 
     def closeEvent(self, event) -> None:
@@ -87,7 +94,25 @@ class MenuWindow(QWidget):
         root.addWidget(btn_books, alignment=Qt.AlignmentFlag.AlignCenter)
 
         root.addStretch(1)
-        root.addWidget(self._build_scheme_picker(), alignment=Qt.AlignmentFlag.AlignCenter)
+
+        footer = QHBoxLayout()
+        footer.setContentsMargins(0, 0, 0, 0)
+        footer.setSpacing(12)
+        footer.addWidget(self._build_scheme_picker(), alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom)
+        footer.addStretch(1)
+
+        self._cc_label = QLabel("CC-NC")
+        self._cc_label.setText(
+            f'<a href="{self._CC_LICENSE_URL}" style="color:{theme.TEXT_MUTED}; text-decoration:none;">CC-BY-NC</a>'
+        )
+        self._cc_label.setStyleSheet(f"font-size: 12px; color: {theme.TEXT_MUTED};")
+        self._cc_label.setTextFormat(Qt.TextFormat.RichText)
+        self._cc_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self._cc_label.setOpenExternalLinks(False)
+        self._cc_label.linkActivated.connect(self._open_cc_license)
+        footer.addWidget(self._cc_label, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+
+        root.addLayout(footer)
 
     def _build_scheme_picker(self) -> QWidget:
         picker = QWidget()
@@ -96,7 +121,7 @@ class MenuWindow(QWidget):
         layout.setSpacing(12)
 
         self._picker_label = QLabel("Farbschema")
-        self._picker_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._picker_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._picker_label.setStyleSheet(f"font-size: 12px; color: {theme.TEXT_SECONDARY};")
         layout.addWidget(self._picker_label)
 
@@ -104,7 +129,6 @@ class MenuWindow(QWidget):
         circles_row = QHBoxLayout()
         circles_row.setSpacing(16)
         circles_row.setContentsMargins(0, 0, 0, 0)
-        circles_row.addStretch()
 
         schemes = list(theme.COLOR_SCHEMES.items())
         for scheme_name, colors in schemes:
@@ -115,8 +139,8 @@ class MenuWindow(QWidget):
             circle.clicked.connect(lambda _checked=False, name=scheme_name: self._select_scheme(name))
             self._scheme_buttons[scheme_name] = circle
             circles_row.addWidget(circle)
-        
-        circles_row.addStretch()
+
+        circles_row.addStretch(1)
         layout.addLayout(circles_row)
         
         self._refresh_scheme_buttons()
@@ -150,6 +174,9 @@ class MenuWindow(QWidget):
                 "border-width: 4px;"
                 "}"
             )
+
+    def _open_cc_license(self, url: str) -> None:
+        QDesktopServices.openUrl(QUrl(url))
 
     # ------------------------------------------------------------------
     # Helpers
