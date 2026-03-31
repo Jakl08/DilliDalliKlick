@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 from dillidalliklick.logic.game_logic import GameConfig
 from dillidalliklick.logic.settings_logic import SettingsLogic
 from dillidalliklick.store import StoreData
+from dillidalliklick.constants import theme
 
 
 class SettingsWindow(QWidget):
@@ -34,7 +35,36 @@ class SettingsWindow(QWidget):
         self._logic = SettingsLogic(app_state)
         self._on_back = on_back
         self._on_start_game = on_start_game
+        
+        # Register for theme changes
+        theme.register_theme_changed_callback(self._on_theme_changed)
+        
         self._build_ui()
+
+    def _on_theme_changed(self) -> None:
+        """Refresh stylesheets when theme changes."""
+        self._update_stylesheets()
+
+    def _update_stylesheets(self) -> None:
+        """Update all stylesheets to reflect current theme."""
+        if not hasattr(self, "_toolbar"):
+            return
+        self._toolbar.setStyleSheet(
+            f"background:{theme.BG_SECONDARY}; border-bottom:1px solid {theme.BORDER};"
+        )
+        if hasattr(self, "_count_lbl"):
+            self._count_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        if hasattr(self, "_cols_lbl"):
+            self._cols_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        if hasattr(self, "_rows_lbl"):
+            self._rows_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        if hasattr(self, "_interval_lbl"):
+            self._interval_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+
+    def closeEvent(self, event) -> None:
+        """Clean up when window is closed."""
+        theme.unregister_theme_changed_callback(self._on_theme_changed)
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------
     # UI
@@ -42,15 +72,17 @@ class SettingsWindow(QWidget):
 
     def _build_ui(self) -> None:
         # Toolbar
-        toolbar = QWidget()
-        toolbar.setStyleSheet("background:#16213e; border-bottom:1px solid #1e3a5f;")
-        toolbar.setFixedHeight(56)
-        tb_layout = QHBoxLayout(toolbar)
+        self._toolbar = QWidget()
+        self._toolbar.setStyleSheet(
+            f"background:{theme.BG_SECONDARY}; border-bottom:1px solid {theme.BORDER};"
+        )
+        self._toolbar.setFixedHeight(56)
+        tb_layout = QHBoxLayout(self._toolbar)
         tb_layout.setContentsMargins(16, 0, 16, 0)
 
-        back_btn = QPushButton("← Menü")
-        back_btn.clicked.connect(self._go_back)
-        tb_layout.addWidget(back_btn)
+        self._back_btn = QPushButton("← Menü")
+        self._back_btn.clicked.connect(self._go_back)
+        tb_layout.addWidget(self._back_btn)
 
         # Scroll content
         content = QWidget()
@@ -71,9 +103,9 @@ class SettingsWindow(QWidget):
         count_group = QGroupBox("Anzahl der Fotos")
         count_layout = QHBoxLayout(count_group)
         count_layout.setSpacing(12)
-        count_lbl = QLabel("Fotos pro Durchlauf:")
-        count_lbl.setStyleSheet("color:#a0a0b0;")
-        count_layout.addWidget(count_lbl)
+        self._count_lbl = QLabel("Fotos pro Durchlauf:")
+        self._count_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        count_layout.addWidget(self._count_lbl)
         self._photo_count_spin = QSpinBox()
         self._photo_count_spin.setRange(1, 500)
         self._photo_count_spin.setValue(5)
@@ -87,9 +119,9 @@ class SettingsWindow(QWidget):
         grid_layout = QHBoxLayout(grid_group)
         grid_layout.setSpacing(12)
 
-        cols_lbl = QLabel("Spalten:")
-        cols_lbl.setStyleSheet("color:#a0a0b0;")
-        grid_layout.addWidget(cols_lbl)
+        self._cols_lbl = QLabel("Spalten:")
+        self._cols_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        grid_layout.addWidget(self._cols_lbl)
         self._cols_spin = QSpinBox()
         self._cols_spin.setRange(1, 20)
         self._cols_spin.setValue(4)
@@ -98,9 +130,9 @@ class SettingsWindow(QWidget):
 
         grid_layout.addSpacing(20)
 
-        rows_lbl = QLabel("Zeilen:")
-        rows_lbl.setStyleSheet("color:#a0a0b0;")
-        grid_layout.addWidget(rows_lbl)
+        self._rows_lbl = QLabel("Zeilen:")
+        self._rows_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        grid_layout.addWidget(self._rows_lbl)
         self._rows_spin = QSpinBox()
         self._rows_spin.setRange(1, 20)
         self._rows_spin.setValue(3)
@@ -123,9 +155,9 @@ class SettingsWindow(QWidget):
         self._timer_row = QWidget()
         timer_row_layout = QHBoxLayout(self._timer_row)
         timer_row_layout.setContentsMargins(24, 8, 0, 0)
-        interval_lbl = QLabel("Intervall (Sekunden):")
-        interval_lbl.setStyleSheet("color:#a0a0b0;")
-        timer_row_layout.addWidget(interval_lbl)
+        self._interval_lbl = QLabel("Intervall (Sekunden):")
+        self._interval_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY};")
+        timer_row_layout.addWidget(self._interval_lbl)
         self._interval_spin = QSpinBox()
         self._interval_spin.setRange(1, 60)
         self._interval_spin.setValue(3)
@@ -154,7 +186,7 @@ class SettingsWindow(QWidget):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
-        root_layout.addWidget(toolbar)
+        root_layout.addWidget(self._toolbar)
         root_layout.addWidget(content)
 
     # ------------------------------------------------------------------

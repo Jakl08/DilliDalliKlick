@@ -1,19 +1,109 @@
 """Qt stylesheet and colour palette for DilliDalliKlick."""
 
-BG_PRIMARY = "#1a1a2e"
-BG_SECONDARY = "#16213e"
-BG_CARD = "#0f3460"
-ACCENT = "#e94560"
-ACCENT_HOVER = "#c73652"
-GREEN = "#4caf50"
-BLUE = "#2196f3"
-ORANGE = "#ff9800"
-TEXT_PRIMARY = "#eaeaea"
-TEXT_SECONDARY = "#a0a0b0"
-TEXT_MUTED = "#606070"
-BORDER = "#1e3a5f"
+from collections.abc import Callable
 
-STYLESHEET = f"""
+from PyQt6.QtWidgets import QApplication
+
+from .color_schemes import COLOR_SCHEMES
+
+DEFAULT_SCHEME = "deep_navy"
+_active_scheme = DEFAULT_SCHEME
+_colors = COLOR_SCHEMES[_active_scheme]
+
+# Callback system for theme changes
+_theme_changed_callbacks: list[Callable[[], None]] = []
+
+
+def _is_light_color(hex_color: str) -> bool:
+    """Return True if the color is light enough for dark text."""
+    color = hex_color.strip()
+    if not color.startswith("#") or len(color) != 7:
+        return False
+    r = int(color[1:3], 16)
+    g = int(color[3:5], 16)
+    b = int(color[5:7], 16)
+    # Perceived luminance
+    luminance = (0.299 * r) + (0.587 * g) + (0.114 * b)
+    return luminance >= 155
+
+
+def _best_text_on(bg_color: str, default_text: str) -> str:
+    """Choose a readable text color for a background, preserving explicit defaults when valid."""
+    if bg_color.lower() == default_text.lower():
+        return "#111111" if _is_light_color(bg_color) else "#f5f5f5"
+    return default_text
+
+
+def register_theme_changed_callback(callback: Callable[[], None]) -> None:
+    """Register a callback to be called when the active theme changes."""
+    _theme_changed_callbacks.append(callback)
+
+
+def unregister_theme_changed_callback(callback: Callable[[], None]) -> None:
+    """Unregister a theme change callback."""
+    if callback in _theme_changed_callbacks:
+        _theme_changed_callbacks.remove(callback)
+
+
+def _notify_theme_changed() -> None:
+    """Notify all registered callbacks that the theme has changed."""
+    for callback in _theme_changed_callbacks:
+        try:
+            callback()
+        except Exception:
+            pass
+
+def _apply_colors(colors: dict[str, str]) -> None:
+    global BG_PRIMARY, BG_SECONDARY, BG_CARD
+    global ACCENT, ACCENT_HOVER, GREEN, BLUE, ORANGE
+    global TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED
+    global BORDER, WHITE, TRANSPARENT
+    global BUTTON_HOVER, SUCCESS_HOVER, INFO_HOVER
+    global DANGER, DANGER_HOVER
+    global BUTTON_TEXT_PRIMARY, BUTTON_TEXT_SECONDARY, BUTTON_TEXT_ACCENT
+    global BUTTON_TEXT_SUCCESS, BUTTON_TEXT_INFO, BUTTON_TEXT_DANGER
+
+    BG_PRIMARY = colors["bg_primary"]
+    BG_SECONDARY = colors["bg_secondary"]
+    BG_CARD = colors["bg_card"]
+    ACCENT = colors["accent"]
+    ACCENT_HOVER = colors["accent_hover"]
+    GREEN = colors["green"]
+    BLUE = colors["blue"]
+    ORANGE = colors["orange"]
+    TEXT_PRIMARY = colors["text_primary"]
+    TEXT_SECONDARY = colors["text_secondary"]
+    TEXT_MUTED = colors["text_muted"]
+    BORDER = colors["border"]
+    WHITE = colors["white"]
+    TRANSPARENT = colors["transparent"]
+    BUTTON_HOVER = colors["button_hover"]
+    SUCCESS_HOVER = colors["success_hover"]
+    INFO_HOVER = colors["info_hover"]
+    DANGER = colors["danger"]
+    DANGER_HOVER = colors["danger_hover"]
+    BUTTON_TEXT_PRIMARY = colors.get("button_text_primary", WHITE)
+    BUTTON_TEXT_SECONDARY = colors.get("button_text_secondary", WHITE)
+    BUTTON_TEXT_ACCENT = _best_text_on(
+        ACCENT,
+        colors.get("button_text_accent", BUTTON_TEXT_PRIMARY),
+    )
+    BUTTON_TEXT_SUCCESS = _best_text_on(
+        GREEN,
+        colors.get("button_text_success", BUTTON_TEXT_PRIMARY),
+    )
+    BUTTON_TEXT_INFO = _best_text_on(
+        BLUE,
+        colors.get("button_text_info", BUTTON_TEXT_PRIMARY),
+    )
+    BUTTON_TEXT_DANGER = _best_text_on(
+        DANGER,
+        colors.get("button_text_danger", BUTTON_TEXT_PRIMARY),
+    )
+
+
+def _build_stylesheet() -> str:
+    return f"""
 /* ── Global ── */
 QWidget {{
     background-color: {BG_PRIMARY};
@@ -28,7 +118,7 @@ QMainWindow, QDialog {{
 
 /* ── Labels ── */
 QLabel {{
-    background: transparent;
+    background: {TRANSPARENT};
     color: {TEXT_PRIMARY};
 }}
 
@@ -43,12 +133,12 @@ QPushButton {{
     font-weight: 500;
 }}
 QPushButton:hover {{
-    background-color: #1a4a80;
+    background-color: {BUTTON_HOVER};
     border-color: {ACCENT};
 }}
 QPushButton:pressed {{
     background-color: {ACCENT};
-    color: white;
+    color: {BUTTON_TEXT_ACCENT};
 }}
 QPushButton:disabled {{
     opacity: 0.45;
@@ -57,7 +147,7 @@ QPushButton:disabled {{
 
 QPushButton[class="primary"] {{
     background-color: {ACCENT};
-    color: white;
+    color: {BUTTON_TEXT_ACCENT};
     border: none;
 }}
 QPushButton[class="primary"]:hover {{
@@ -66,29 +156,29 @@ QPushButton[class="primary"]:hover {{
 
 QPushButton[class="success"] {{
     background-color: {GREEN};
-    color: white;
+    color: {BUTTON_TEXT_SUCCESS};
     border: none;
 }}
 QPushButton[class="success"]:hover {{
-    background-color: #388e3c;
+    background-color: {SUCCESS_HOVER};
 }}
 
 QPushButton[class="info"] {{
     background-color: {BLUE};
-    color: white;
+    color: {BUTTON_TEXT_INFO};
     border: none;
 }}
 QPushButton[class="info"]:hover {{
-    background-color: #1565c0;
+    background-color: {INFO_HOVER};
 }}
 
 QPushButton[class="danger"] {{
-    background-color: #b71c1c;
-    color: white;
+    background-color: {DANGER};
+    color: {BUTTON_TEXT_DANGER};
     border: none;
 }}
 QPushButton[class="danger"]:hover {{
-    background-color: #d32f2f;
+    background-color: {DANGER_HOVER};
 }}
 
 /* ── Line edits / spin boxes ── */
@@ -128,7 +218,7 @@ QComboBox QAbstractItemView {{
 
 /* ── Radio buttons ── */
 QRadioButton {{
-    background: transparent;
+    background: {TRANSPARENT};
     spacing: 8px;
     font-size: 14px;
 }}
@@ -167,7 +257,7 @@ QGroupBox::title {{
 /* ── Scroll areas ── */
 QScrollArea {{
     border: none;
-    background: transparent;
+    background: {TRANSPARENT};
 }}
 QScrollBar:vertical {{
     background: {BG_SECONDARY};
@@ -194,7 +284,7 @@ QProgressBar {{
     border-radius: 3px;
     height: 6px;
     text-align: center;
-    color: transparent;
+    color: {TRANSPARENT};
 }}
 QProgressBar::chunk {{
     background: {ACCENT};
@@ -218,6 +308,26 @@ QMessageBox QLabel {{
 """
 
 
-def apply(app) -> None:
+def set_active_scheme(scheme_name: str) -> None:
+    """Select the active color scheme and rebuild theme variables."""
+    global _active_scheme, _colors
+    if scheme_name not in COLOR_SCHEMES:
+        raise ValueError(f"Unknown color scheme: {scheme_name}")
+
+    _active_scheme = scheme_name
+    _colors = COLOR_SCHEMES[_active_scheme]
+    _apply_colors(_colors)
+    _notify_theme_changed()
+
+
+def get_active_scheme() -> str:
+    """Return the current scheme identifier."""
+    return _active_scheme
+
+
+_apply_colors(_colors)
+
+
+def apply(app: QApplication) -> None:
     """Apply the stylesheet to a QApplication instance."""
-    app.setStyleSheet(STYLESHEET)
+    app.setStyleSheet(_build_stylesheet())

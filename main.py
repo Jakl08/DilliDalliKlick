@@ -44,6 +44,8 @@ class AppWindow(QMainWindow):
         self._menu = MenuWindow(
             on_open_settings=self._open_settings,
             on_open_photobooks=self._open_photobooks,
+            on_change_scheme=self._change_color_scheme,
+            active_scheme=theme.get_active_scheme(),
         )
         self._settings = SettingsWindow(
             app_state=self._state,
@@ -75,6 +77,12 @@ class AppWindow(QMainWindow):
 
     def _show_menu(self) -> None:
         self._stack.setCurrentWidget(self._menu)
+
+    def _change_color_scheme(self, scheme_name: str) -> None:
+        theme.set_active_scheme(scheme_name)
+        app = QApplication.instance()
+        if app is not None:
+            theme.apply(app)
 
     def _open_game(self, config: GameConfig) -> None:
         self._game.start_game(config)

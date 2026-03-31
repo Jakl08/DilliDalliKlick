@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 
 from dillidalliklick.logic.photobook_logic import PhotobookLogic
 from dillidalliklick.store import StoreData
+from dillidalliklick.constants import theme
 
 
 class PhotobookWindow(QWidget):
@@ -35,38 +36,86 @@ class PhotobookWindow(QWidget):
         self._logic = PhotobookLogic(app_state)
         self._on_back = on_back
         self._current_book_id: str | None = None
+        
+        # Register for theme changes
+        theme.register_theme_changed_callback(self._on_theme_changed)
+        
         self._build_ui()
         self._refresh_book_list()
+
+    def _on_theme_changed(self) -> None:
+        """Refresh stylesheets when theme changes."""
+        self._update_stylesheets()
+
+    def _update_stylesheets(self) -> None:
+        """Update all stylesheets to reflect current theme."""
+        if not hasattr(self, "_toolbar"):
+            return
+        self._toolbar.setStyleSheet(
+            f"background:{theme.BG_SECONDARY}; border-bottom:1px solid {theme.BORDER};"
+        )
+        self._title.setStyleSheet(f"color:{theme.ACCENT};")
+        self._books_label.setStyleSheet(
+            f"font-weight:700; font-size:13px; color:{theme.TEXT_SECONDARY};"
+        )
+        self._splitter.setStyleSheet(f"QSplitter::handle {{ background:{theme.BORDER}; }}")
+        if hasattr(self, "_book_list"):
+            self._book_list.setStyleSheet(
+                f"QListWidget {{ background:{theme.BG_SECONDARY}; border:1px solid {theme.BORDER}; border-radius:6px; }}"
+                "QListWidget::item { padding:10px 12px; border-radius:4px; }"
+                f"QListWidget::item:selected {{ background:{theme.ACCENT}; color:{theme.WHITE}; }}"
+                f"QListWidget::item:hover:!selected {{ background:{theme.BUTTON_HOVER}; }}"
+            )
+        if hasattr(self, "_dir_label"):
+            self._dir_label.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:12px;")
+        if hasattr(self, "_photo_container"):
+            self._photo_container.setStyleSheet(f"background:{theme.BG_SECONDARY};")
+        if hasattr(self, "_no_photos_label"):
+            self._no_photos_label.setStyleSheet(
+                f"color:{theme.TEXT_MUTED}; font-size:13px; padding:40px;"
+            )
+        if hasattr(self, "_photo_grid_layout"):
+            for i in range(self._photo_grid_layout.count()):
+                widget = self._photo_grid_layout.itemAt(i).widget() if self._photo_grid_layout.itemAt(i) else None
+                if widget and isinstance(widget, _PhotoThumb):
+                    widget._update_stylesheet()
+
+    def closeEvent(self, event) -> None:
+        """Clean up when window is closed."""
+        theme.unregister_theme_changed_callback(self._on_theme_changed)
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------
     # UI
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        toolbar = QWidget()
-        toolbar.setStyleSheet("background:#16213e; border-bottom:1px solid #1e3a5f;")
-        toolbar.setFixedHeight(56)
-        tb_layout = QHBoxLayout(toolbar)
+        self._toolbar = QWidget()
+        self._toolbar.setStyleSheet(
+            f"background:{theme.BG_SECONDARY}; border-bottom:1px solid {theme.BORDER};"
+        )
+        self._toolbar.setFixedHeight(56)
+        tb_layout = QHBoxLayout(self._toolbar)
         tb_layout.setContentsMargins(16, 0, 16, 0)
 
-        title = QLabel("📚  Fotobücher")
+        self._title = QLabel("📚  Fotobücher")
         title_font = QFont()
         title_font.setPointSize(14)
         title_font.setBold(True)
-        title.setFont(title_font)
-        title.setStyleSheet("color:#e94560;")
-        tb_layout.addWidget(title)
+        self._title.setFont(title_font)
+        self._title.setStyleSheet(f"color:{theme.ACCENT};")
+        tb_layout.addWidget(self._title)
 
         tb_layout.addStretch()
 
-        back_btn = QPushButton("← Menü")
-        back_btn.clicked.connect(self._go_back)
-        tb_layout.addWidget(back_btn)
+        self._back_btn = QPushButton("← Menü")
+        self._back_btn.clicked.connect(self._go_back)
+        tb_layout.addWidget(self._back_btn)
 
         # Main area: left = book list, right = photo manager
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(1)
-        splitter.setStyleSheet("QSplitter::handle { background:#1e3a5f; }")
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setHandleWidth(1)
+        self._splitter.setStyleSheet(f"QSplitter::handle {{ background:{theme.BORDER}; }}")
 
         # Left panel
         left = QWidget()
@@ -75,29 +124,31 @@ class PhotobookWindow(QWidget):
         left_layout.setContentsMargins(12, 12, 6, 12)
         left_layout.setSpacing(8)
 
-        books_label = QLabel("Meine Fotobücher")
-        books_label.setStyleSheet("font-weight:700; font-size:13px; color:#a0a0b0;")
-        left_layout.addWidget(books_label)
+        self._books_label = QLabel("Meine Fotobücher")
+        self._books_label.setStyleSheet(
+            f"font-weight:700; font-size:13px; color:{theme.TEXT_SECONDARY};"
+        )
+        left_layout.addWidget(self._books_label)
 
         self._book_list = QListWidget()
         self._book_list.setStyleSheet(
-            "QListWidget { background:#16213e; border:1px solid #1e3a5f; border-radius:6px; }"
+            f"QListWidget {{ background:{theme.BG_SECONDARY}; border:1px solid {theme.BORDER}; border-radius:6px; }}"
             "QListWidget::item { padding:10px 12px; border-radius:4px; }"
-            "QListWidget::item:selected { background:#e94560; color:white; }"
-            "QListWidget::item:hover:!selected { background:#1a4a80; }"
+            f"QListWidget::item:selected {{ background:{theme.ACCENT}; color:{theme.WHITE}; }}"
+            f"QListWidget::item:hover:!selected {{ background:{theme.BUTTON_HOVER}; }}"
         )
         self._book_list.currentRowChanged.connect(self._on_book_selected)
         left_layout.addWidget(self._book_list)
 
-        add_btn = QPushButton("➕  Neues Fotobuch")
-        add_btn.setProperty("class", "success")
-        add_btn.clicked.connect(self._create_book)
-        left_layout.addWidget(add_btn)
+        self._add_btn = QPushButton("➕  Neues Fotobuch")
+        self._add_btn.setProperty("class", "success")
+        self._add_btn.clicked.connect(self._create_book)
+        left_layout.addWidget(self._add_btn)
 
-        del_btn = QPushButton("🗑  Fotobuch löschen")
-        del_btn.setProperty("class", "danger")
-        del_btn.clicked.connect(self._delete_book)
-        left_layout.addWidget(del_btn)
+        self._del_btn = QPushButton("🗑  Fotobuch löschen")
+        self._del_btn.setProperty("class", "danger")
+        self._del_btn.clicked.connect(self._delete_book)
+        left_layout.addWidget(self._del_btn)
 
         # Right panel
         right = QWidget()
@@ -110,47 +161,51 @@ class PhotobookWindow(QWidget):
         dir_hlayout = QHBoxLayout(dir_group)
         dir_hlayout.setSpacing(8)
         self._dir_label = QLabel("(kein Verzeichnis gewählt)")
-        self._dir_label.setStyleSheet("color:#a0a0b0; font-size:12px;")
+        self._dir_label.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:12px;")
         self._dir_label.setWordWrap(True)
         dir_hlayout.addWidget(self._dir_label, 1)
-        choose_dir_btn = QPushButton("📁  Verzeichnis wählen")
-        choose_dir_btn.setProperty("class", "info")
-        choose_dir_btn.clicked.connect(self._choose_directory)
-        dir_hlayout.addWidget(choose_dir_btn)
+        self._choose_dir_btn = QPushButton("📁  Verzeichnis wählen")
+        self._choose_dir_btn.setProperty("class", "info")
+        self._choose_dir_btn.clicked.connect(self._choose_directory)
+        dir_hlayout.addWidget(self._choose_dir_btn)
         right_layout.addWidget(dir_group)
 
         # Import row
-        import_btn = QPushButton("➕  Einzelne Fotos importieren")
-        import_btn.setProperty("class", "info")
-        import_btn.clicked.connect(self._import_photos)
-        right_layout.addWidget(import_btn)
+        self._import_btn = QPushButton("➕  Einzelne Fotos importieren")
+        self._import_btn.setProperty("class", "info")
+        self._import_btn.clicked.connect(self._import_photos)
+        right_layout.addWidget(self._import_btn)
 
         # Photo grid (scroll area)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border:1px solid #1e3a5f; border-radius:6px; }")
+        scroll.setStyleSheet(
+            f"QScrollArea {{ border:1px solid {theme.BORDER}; border-radius:6px; }}"
+        )
         self._photo_container = QWidget()
-        self._photo_container.setStyleSheet("background:#16213e;")
+        self._photo_container.setStyleSheet(f"background:{theme.BG_SECONDARY};")
         self._photo_grid_layout = _WrapLayout(self._photo_container)
         scroll.setWidget(self._photo_container)
         right_layout.addWidget(scroll, 1)
 
         self._no_photos_label = QLabel("Noch keine Fotos – wähle ein Verzeichnis\noder importiere einzelne Bilder.")
         self._no_photos_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._no_photos_label.setStyleSheet("color:#606070; font-size:13px; padding:40px;")
+        self._no_photos_label.setStyleSheet(
+            f"color:{theme.TEXT_MUTED}; font-size:13px; padding:40px;"
+        )
         right_layout.addWidget(self._no_photos_label)
         self._no_photos_label.hide()
 
-        splitter.addWidget(left)
-        splitter.addWidget(right)
-        splitter.setSizes([240, 660])
+        self._splitter.addWidget(left)
+        self._splitter.addWidget(right)
+        self._splitter.setSizes([240, 660])
 
         # Root layout
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
-        root_layout.addWidget(toolbar)
-        root_layout.addWidget(splitter)
+        root_layout.addWidget(self._toolbar)
+        root_layout.addWidget(self._splitter)
 
     # ------------------------------------------------------------------
     # Book list
@@ -329,9 +384,7 @@ class _PhotoThumb(QFrame):
         super().__init__()
         self._path = path
         self.setFixedSize(120, 140)
-        self.setStyleSheet(
-            "QFrame { background:#0f3460; border:1px solid #1e3a5f; border-radius:6px; }"
-        )
+        self._update_stylesheet()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -351,7 +404,7 @@ class _PhotoThumb(QFrame):
             )
         else:
             img_label.setText("🖼")
-            img_label.setStyleSheet("font-size:28px; color:#606070;")
+            img_label.setStyleSheet(f"font-size:28px; color:{theme.TEXT_MUTED};")
 
         remove_btn = QPushButton(image_wrap)
         remove_btn.setFixedSize(24, 20)
@@ -360,8 +413,8 @@ class _PhotoThumb(QFrame):
         remove_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
         remove_btn.setIconSize(QSize(14, 14))
         remove_btn.setStyleSheet(
-            "QPushButton { background:rgba(183, 28, 28, 0.9); color:white; border:none; border-radius:4px; }"
-            "QPushButton:hover { background:rgba(211, 47, 47, 0.95); }"
+            f"QPushButton {{ background:{theme.DANGER}; color:{theme.WHITE}; border:none; border-radius:4px; }}"
+            f"QPushButton:hover {{ background:{theme.DANGER_HOVER}; }}"
         )
         remove_btn.clicked.connect(lambda: self.remove_requested.emit(self._path))
         remove_btn.raise_()
@@ -369,9 +422,15 @@ class _PhotoThumb(QFrame):
 
         name_label = QLabel(Path(path).name)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_label.setStyleSheet("font-size:10px; color:#a0a0b0;")
+        name_label.setStyleSheet(f"font-size:10px; color:{theme.TEXT_SECONDARY};")
         name_label.setWordWrap(True)
         layout.addWidget(name_label)
+
+    def _update_stylesheet(self) -> None:
+        """Update the frame stylesheet to reflect current theme."""
+        self.setStyleSheet(
+            f"QFrame {{ background:{theme.BG_CARD}; border:1px solid {theme.BORDER}; border-radius:6px; }}"
+        )
 
 
 class _WrapLayout(QVBoxLayout):

@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from dillidalliklick.logic.game_logic import BoardState, GameConfig, GameSession
+from dillidalliklick.constants import theme
 
 
 class GameWindow(QWidget):
@@ -37,7 +38,70 @@ class GameWindow(QWidget):
         self._timer.timeout.connect(self._timer_tick)
         self._timer_remaining = 0
 
+        # Register for theme changes
+        theme.register_theme_changed_callback(self._on_theme_changed)
+
         self._build_ui()
+
+    def _on_theme_changed(self) -> None:
+        """Refresh stylesheets when theme changes."""
+        self._update_stylesheets()
+
+    def _style_menu_button(self) -> None:
+        """Ensure the top-right menu button always has readable themed colors."""
+        if not hasattr(self, "_menu_btn"):
+            return
+        self._menu_btn.setStyleSheet(
+            "QPushButton {"
+            f"background:{theme.ACCENT};"
+            f"color:{theme.BUTTON_TEXT_ACCENT};"
+            f"border:1px solid {theme.BORDER};"
+            "border-radius:6px;"
+            "padding:8px 14px;"
+            "}"
+            "QPushButton:hover {"
+            f"background:{theme.ACCENT_HOVER};"
+            f"border-color:{theme.ACCENT};"
+            "}"
+            "QPushButton:pressed {"
+            f"background:{theme.ACCENT};"
+            f"color:{theme.BUTTON_TEXT_ACCENT};"
+            "}"
+        )
+
+    def _update_stylesheets(self) -> None:
+        """Update all stylesheets to reflect current theme."""
+        if not hasattr(self, "_toolbar"):
+            return
+        self._toolbar.setStyleSheet(
+            f"background:{theme.BG_PRIMARY}; border-bottom:1px solid {theme.BORDER};"
+        )
+        self._brand.setStyleSheet(f"color:{theme.ACCENT};")
+        self._info_bar.setStyleSheet(f"background:{theme.BG_SECONDARY};")
+        self._photo_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:13px;")
+        self._tiles_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:13px;")
+        self._mode_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:13px;")
+        self._board_container.setStyleSheet(f"background:{theme.BG_PRIMARY};")
+        self._controls.setStyleSheet(
+            f"background:{theme.BG_PRIMARY}; border-top:1px solid {theme.BORDER};"
+        )
+        self._timer_lbl.setStyleSheet(
+            f"color:{theme.ACCENT}; font-size:22px; font-weight:700; min-width:70px;"
+        )
+        self._hint_lbl.setStyleSheet(f"color:{theme.TEXT_MUTED}; font-size:13px;")
+        self._style_menu_button()
+        for btn in (self._uncover_btn, self._next_btn, self._finish_btn, self._menu_btn):
+            style_obj = btn.style()
+            if style_obj is not None:
+                style_obj.unpolish(btn)
+                style_obj.polish(btn)
+            btn.update()
+        self._board_widget.update()
+
+    def closeEvent(self, event) -> None:
+        """Clean up when window is closed."""
+        theme.unregister_theme_changed_callback(self._on_theme_changed)
+        super().closeEvent(event)
 
     def start_game(self, config: GameConfig) -> None:
         """Initialize state and start a new game session."""
@@ -55,43 +119,47 @@ class GameWindow(QWidget):
 
     def _build_ui(self) -> None:
         # Toolbar
-        toolbar = QWidget()
-        toolbar.setStyleSheet("background:#0d0d1a; border-bottom:1px solid #1e3a5f;")
-        toolbar.setFixedHeight(52)
-        tb = QHBoxLayout(toolbar)
+        self._toolbar = QWidget()
+        self._toolbar.setStyleSheet(
+            f"background:{theme.BG_PRIMARY}; border-bottom:1px solid {theme.BORDER};"
+        )
+        self._toolbar.setFixedHeight(52)
+        tb = QHBoxLayout(self._toolbar)
         tb.setContentsMargins(16, 0, 16, 0)
 
-        brand = QLabel("🎮  DilliDalliKlick")
+        self._brand = QLabel("🎮  DilliDalliKlick")
         brand_font = QFont()
         brand_font.setPointSize(13)
         brand_font.setBold(True)
-        brand.setFont(brand_font)
-        brand.setStyleSheet("color:#e94560;")
-        tb.addWidget(brand)
+        self._brand.setFont(brand_font)
+        self._brand.setStyleSheet(f"color:{theme.ACCENT};")
+        tb.addWidget(self._brand)
         tb.addStretch()
 
-        menu_btn = QPushButton("🏠  Menü")
-        menu_btn.clicked.connect(self._back_to_menu)
-        tb.addWidget(menu_btn)
+        self._menu_btn = QPushButton("🏠  Menü")
+        self._menu_btn.setProperty("class", "primary")
+        self._style_menu_button()
+        self._menu_btn.clicked.connect(self._back_to_menu)
+        tb.addWidget(self._menu_btn)
 
         # Info bar
-        info_bar = QWidget()
-        info_bar.setStyleSheet("background:#111122;")
-        info_bar.setFixedHeight(36)
-        ib = QHBoxLayout(info_bar)
+        self._info_bar = QWidget()
+        self._info_bar.setStyleSheet(f"background:{theme.BG_SECONDARY};")
+        self._info_bar.setFixedHeight(36)
+        ib = QHBoxLayout(self._info_bar)
         ib.setContentsMargins(20, 0, 20, 0)
         ib.setSpacing(24)
 
         self._photo_lbl = QLabel()
-        self._photo_lbl.setStyleSheet("color:#a0a0b0; font-size:13px;")
+        self._photo_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:13px;")
         ib.addWidget(self._photo_lbl)
 
         self._tiles_lbl = QLabel()
-        self._tiles_lbl.setStyleSheet("color:#a0a0b0; font-size:13px;")
+        self._tiles_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:13px;")
         ib.addWidget(self._tiles_lbl)
 
         self._mode_lbl = QLabel()
-        self._mode_lbl.setStyleSheet("color:#a0a0b0; font-size:13px;")
+        self._mode_lbl.setStyleSheet(f"color:{theme.TEXT_SECONDARY}; font-size:13px;")
         ib.addWidget(self._mode_lbl)
 
         ib.addStretch()
@@ -105,7 +173,7 @@ class GameWindow(QWidget):
 
         # Central board
         self._board_container = _BoardArea()
-        self._board_container.setStyleSheet("background:#000;")
+        self._board_container.setStyleSheet(f"background:{theme.BG_PRIMARY};")
         self._board_container.area_clicked.connect(self._on_board_area_clicked)
         board_layout = QVBoxLayout(self._board_container)
         board_layout.setContentsMargins(0, 0, 0, 0)
@@ -116,21 +184,25 @@ class GameWindow(QWidget):
         board_layout.addWidget(self._board_widget, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Controls bar
-        controls = QWidget()
-        controls.setStyleSheet("background:#0d0d1a; border-top:1px solid #1e3a5f;")
-        controls.setFixedHeight(60)
-        ctrl = QHBoxLayout(controls)
+        self._controls = QWidget()
+        self._controls.setStyleSheet(
+            f"background:{theme.BG_PRIMARY}; border-top:1px solid {theme.BORDER};"
+        )
+        self._controls.setFixedHeight(60)
+        ctrl = QHBoxLayout(self._controls)
         ctrl.setContentsMargins(20, 0, 20, 0)
         ctrl.setSpacing(16)
 
         self._timer_lbl = QLabel("")
-        self._timer_lbl.setStyleSheet("color:#e94560; font-size:22px; font-weight:700; min-width:70px;")
+        self._timer_lbl.setStyleSheet(
+            f"color:{theme.ACCENT}; font-size:22px; font-weight:700; min-width:70px;"
+        )
         ctrl.addWidget(self._timer_lbl)
 
         ctrl.addStretch()
 
         self._hint_lbl = QLabel("")
-        self._hint_lbl.setStyleSheet("color:#606070; font-size:13px;")
+        self._hint_lbl.setStyleSheet(f"color:{theme.TEXT_MUTED}; font-size:13px;")
         ctrl.addWidget(self._hint_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
         ctrl.addStretch()
 
@@ -159,11 +231,11 @@ class GameWindow(QWidget):
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
-        root_layout.addWidget(toolbar)
-        root_layout.addWidget(info_bar)
+        root_layout.addWidget(self._toolbar)
+        root_layout.addWidget(self._info_bar)
         root_layout.addWidget(self._progress)
         root_layout.addWidget(self._board_container, 1)
-        root_layout.addWidget(controls)
+        root_layout.addWidget(self._controls)
 
     # ------------------------------------------------------------------
     # Photo loading
@@ -206,17 +278,21 @@ class GameWindow(QWidget):
             self._timer_lbl.setText(f"{self._timer_remaining}s")
             self._timer.start(1000)
 
-        self._mode_lbl.setText(f"Modus: <b style='color:#eaeaea'>{self._session.mode_label}</b>")
+        self._mode_lbl.setText(
+            f"Modus: <b style='color:{theme.TEXT_PRIMARY}'>{self._session.mode_label}</b>"
+        )
         self._update_info()
 
     def _update_info(self) -> None:
         total = self._session.total_photos
         idx = self._session.current_index
-        self._photo_lbl.setText(f"Foto: <b style='color:#eaeaea'>{idx + 1} / {total}</b>")
+        self._photo_lbl.setText(
+            f"Foto: <b style='color:{theme.TEXT_PRIMARY}'>{idx + 1} / {total}</b>"
+        )
         revealed = self._board_widget.revealed_count()
         total_tiles = self._session.cols * self._session.rows
         self._tiles_lbl.setText(
-            f"Aufgedeckt: <b style='color:#eaeaea'>{revealed} / {total_tiles}</b>"
+            f"Aufgedeckt: <b style='color:{theme.TEXT_PRIMARY}'>{revealed} / {total_tiles}</b>"
         )
         self._photo_lbl.update()
         pct = int(revealed / total_tiles * 100) if total_tiles else 0
@@ -331,9 +407,6 @@ class _GameBoard(QWidget):
 
     tile_clicked = pyqtSignal(int, int)  # row, col
 
-    _TILE_COLOR = QColor(15, 52, 96)          # covered tile
-    _TILE_HOVER = _TILE_COLOR                 # keep hover visually unchanged
-
     def __init__(self, cols: int, rows: int) -> None:
         super().__init__()
         self._state = BoardState(cols, rows)
@@ -398,14 +471,12 @@ class _GameBoard(QWidget):
                 tw = int((c + 1) * tile_w) - x
                 th = int((r + 1) * tile_h) - y
 
-                color = (
-                    self._TILE_HOVER
-                    if self._hover_rc == (r, c)
-                    else self._TILE_COLOR
-                )
+                color = QColor(theme.BG_CARD)
                 painter.fillRect(x, y, tw, th, color)
                 # subtle grid line
-                painter.setPen(QColor(255, 255, 255, 15))
+                grid_color = QColor(theme.BORDER)
+                grid_color.setAlpha(100)
+                painter.setPen(grid_color)
                 painter.drawRect(x, y, tw - 1, th - 1)
 
     def mouseMoveEvent(self, event) -> None:
