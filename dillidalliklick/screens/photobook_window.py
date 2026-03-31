@@ -1,13 +1,11 @@
 """Photobook management window."""
 
-import os
-import time
+from collections.abc import Callable
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
-from PyQt6.QtGui import QFont, QPixmap, QIcon
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
-    QDialog,
     QFileDialog,
     QFrame,
     QGroupBox,
@@ -16,31 +14,27 @@ from PyQt6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QMainWindow,
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSplitter,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
 
-from dillidalliklick import store
+from dillidalliklick.logic.photobook_logic import PhotobookLogic
+from dillidalliklick.store import StoreData
 
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"}
 
-
-class PhotobookWindow(QMainWindow):
+class PhotobookWindow(QWidget):
     """Manage photobooks and their photo collections."""
 
-    def __init__(self, app_state: dict, parent_window) -> None:
+    def __init__(self, app_state: StoreData, on_back: Callable[[], None]) -> None:
         super().__init__()
-        self._state = app_state
-        self._parent_window = parent_window
+        self._logic = PhotobookLogic(app_state)
+        self._on_back = on_back
         self._current_book_id: str | None = None
-        self.setWindowTitle("DilliDalliKlick – Fotobücher")
-        self.setMinimumSize(900, 620)
         self._build_ui()
         self._refresh_book_list()
 
@@ -123,11 +117,6 @@ class PhotobookWindow(QMainWindow):
         choose_dir_btn.setProperty("class", "info")
         choose_dir_btn.clicked.connect(self._choose_directory)
         dir_hlayout.addWidget(choose_dir_btn)
-        refresh_dir_btn = QPushButton("🔄")
-        refresh_dir_btn.setToolTip("Verzeichnis neu einlesen")
-        refresh_dir_btn.setFixedWidth(36)
-        refresh_dir_btn.clicked.connect(self._refresh_directory)
-        dir_hlayout.addWidget(refresh_dir_btn)
         right_layout.addWidget(dir_group)
 
         # Import row
@@ -157,26 +146,41 @@ class PhotobookWindow(QMainWindow):
         splitter.setSizes([240, 660])
 
         # Root layout
-        root = QWidget()
-        root_layout = QVBoxLayout(root)
+        root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
         root_layout.addWidget(toolbar)
         root_layout.addWidget(splitter)
-        self.setCentralWidget(root)
 
     # ------------------------------------------------------------------
     # Book list
     # ------------------------------------------------------------------
 
-    def _refresh_book_list(self) -> None:
+    def refresh_books(self) -> None:
+        self._refresh_book_list()
+
+    def _refresh_book_list(self, selected_book_id: str | None = None) -> None:
+        if selected_book_id is None:
+            selected_book_id = self._current_book_id
+
+        self._book_list.blockSignals(True)
         self._book_list.clear()
-        books = self._state.get("photobooks", {})
-        for book_id, book in books.items():
-            count = len(book.get("photos", []))
-            item = QListWidgetItem(f"{book['name']}  ({count})")
+
+        selected_row = -1
+        for row, (book_id, name, count) in enumerate(self._logic.books()):
+            item = QListWidgetItem(f"{name}  ({count})")
             item.setData(Qt.ItemDataRole.UserRole, book_id)
             self._book_list.addItem(item)
+            if book_id == selected_book_id:
+                selected_row = row
+
+        self._book_list.blockSignals(False)
+
+        if selected_row >= 0:
+            self._book_list.setCurrentRow(selected_row)
+        else:
+            self._current_book_id = None
+            self._clear_photo_grid()
 
     def _on_book_selected(self, row: int) -> None:
         if row < 0:
@@ -193,27 +197,17 @@ class PhotobookWindow(QMainWindow):
 
     def _create_book(self) -> None:
         name, ok = QInputDialog.getText(self, "Neues Fotobuch", "Name des Fotobuchs:")
-        if not ok or not name.strip():
+        if not ok:
             return
-        book_id = f"book_{int(time.time() * 1000)}"
-        self._state["photobooks"][book_id] = {
-            "id": book_id,
-            "name": name.strip(),
-            "photos": [],
-            "directory": None,
-        }
-        store.save(self._state)
-        self._refresh_book_list()
-        # Select the new book
-        for i in range(self._book_list.count()):
-            if self._book_list.item(i).data(Qt.ItemDataRole.UserRole) == book_id:
-                self._book_list.setCurrentRow(i)
-                break
+        book_id = self._logic.create_book(name)
+        if not book_id:
+            return
+        self._refresh_book_list(book_id)
 
     def _delete_book(self) -> None:
         if not self._current_book_id:
             return
-        book = self._state["photobooks"].get(self._current_book_id)
+        book = self._logic.get_book(self._current_book_id)
         if not book:
             return
         reply = QMessageBox.question(
@@ -224,9 +218,8 @@ class PhotobookWindow(QMainWindow):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-        del self._state["photobooks"][self._current_book_id]
+        self._logic.delete_book(self._current_book_id)
         self._current_book_id = None
-        store.save(self._state)
         self._refresh_book_list()
         self._clear_photo_grid()
 
@@ -241,12 +234,7 @@ class PhotobookWindow(QMainWindow):
         dir_path = QFileDialog.getExistingDirectory(self, "Verzeichnis wählen")
         if not dir_path:
             return
-        book = self._state["photobooks"][self._current_book_id]
-        book["directory"] = dir_path
-        images = _scan_directory(dir_path)
-        existing = set(book["photos"])
-        book["photos"] = list(existing | set(images))
-        store.save(self._state)
+        self._logic.set_book_directory(self._current_book_id, dir_path)
         self._dir_label.setText(dir_path)
         self._refresh_book_list()
         self._refresh_photo_grid()
@@ -254,17 +242,13 @@ class PhotobookWindow(QMainWindow):
     def _refresh_directory(self) -> None:
         if not self._current_book_id:
             return
-        book = self._state["photobooks"][self._current_book_id]
-        if not book.get("directory"):
+        try:
+            new_count = self._logic.refresh_book_directory(self._current_book_id)
+        except ValueError:
             return
-        images = _scan_directory(book["directory"])
-        existing = set(book["photos"])
-        new_images = set(images) - existing
-        book["photos"] = list(existing | set(images))
-        store.save(self._state)
         self._refresh_book_list()
         self._refresh_photo_grid()
-        QMessageBox.information(self, "Aktualisiert", f"{len(new_images)} neue Foto(s) gefunden.")
+        QMessageBox.information(self, "Aktualisiert", f"{new_count} neue Foto(s) gefunden.")
 
     def _import_photos(self) -> None:
         if not self._current_book_id:
@@ -278,21 +262,15 @@ class PhotobookWindow(QMainWindow):
         )
         if not paths:
             return
-        book = self._state["photobooks"][self._current_book_id]
-        existing = set(book["photos"])
-        added = [p for p in paths if p not in existing]
-        book["photos"] = list(existing | set(paths))
-        store.save(self._state)
+        added_count = self._logic.import_photos(self._current_book_id, paths)
         self._refresh_book_list()
         self._refresh_photo_grid()
-        QMessageBox.information(self, "Importiert", f"{len(added)} Foto(s) hinzugefügt.")
+        QMessageBox.information(self, "Importiert", f"{added_count} Foto(s) hinzugefügt.")
 
     def _remove_photo(self, path: str) -> None:
         if not self._current_book_id:
             return
-        book = self._state["photobooks"][self._current_book_id]
-        book["photos"] = [p for p in book["photos"] if p != path]
-        store.save(self._state)
+        self._logic.remove_photo(self._current_book_id, path)
         self._refresh_book_list()
         self._refresh_photo_grid()
 
@@ -309,9 +287,9 @@ class PhotobookWindow(QMainWindow):
 
     def _refresh_photo_grid(self) -> None:
         self._clear_photo_grid()
-        if not self._current_book_id:
+        book = self._logic.get_book(self._current_book_id)
+        if not book:
             return
-        book = self._state["photobooks"][self._current_book_id]
 
         # Directory label
         if book.get("directory"):
@@ -335,12 +313,7 @@ class PhotobookWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _go_back(self) -> None:
-        self._parent_window.show()
-        self.close()
-
-    def closeEvent(self, event):
-        self._parent_window.show()
-        super().closeEvent(event)
+        self._on_back()
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -364,7 +337,10 @@ class _PhotoThumb(QFrame):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        img_label = QLabel()
+        image_wrap = QFrame()
+        image_wrap.setFixedSize(112, 100)
+
+        img_label = QLabel(image_wrap)
         img_label.setFixedSize(112, 100)
         img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pixmap = QPixmap(path)
@@ -376,22 +352,26 @@ class _PhotoThumb(QFrame):
         else:
             img_label.setText("🖼")
             img_label.setStyleSheet("font-size:28px; color:#606070;")
-        layout.addWidget(img_label)
+
+        remove_btn = QPushButton(image_wrap)
+        remove_btn.setFixedSize(24, 20)
+        remove_btn.move(84, 4)
+        remove_btn.setToolTip("Foto entfernen")
+        remove_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_TrashIcon))
+        remove_btn.setIconSize(QSize(14, 14))
+        remove_btn.setStyleSheet(
+            "QPushButton { background:rgba(183, 28, 28, 0.9); color:white; border:none; border-radius:4px; }"
+            "QPushButton:hover { background:rgba(211, 47, 47, 0.95); }"
+        )
+        remove_btn.clicked.connect(lambda: self.remove_requested.emit(self._path))
+        remove_btn.raise_()
+        layout.addWidget(image_wrap)
 
         name_label = QLabel(Path(path).name)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         name_label.setStyleSheet("font-size:10px; color:#a0a0b0;")
         name_label.setWordWrap(True)
         layout.addWidget(name_label)
-
-        remove_btn = QPushButton("✕")
-        remove_btn.setFixedHeight(20)
-        remove_btn.setStyleSheet(
-            "QPushButton { background:#b71c1c; color:white; border:none; border-radius:4px; font-size:11px; }"
-            "QPushButton:hover { background:#d32f2f; }"
-        )
-        remove_btn.clicked.connect(lambda: self.remove_requested.emit(self._path))
-        layout.addWidget(remove_btn)
 
 
 class _WrapLayout(QVBoxLayout):
@@ -437,8 +417,8 @@ class _WrapLayout(QVBoxLayout):
             if item.layout():
                 while item.layout().count():
                     child = item.layout().takeAt(0)
-                    if child.widget():
-                        child.widget().setParent(None)
+                    # Keep widget parent intact while reflowing.
+                    # Detaching here can make child widgets appear as tiny top-level windows.
                 item.layout().deleteLater()
 
         self._rows = []
@@ -455,17 +435,3 @@ class _WrapLayout(QVBoxLayout):
         super().addStretch(1)
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────────
-
-def _scan_directory(dir_path: str) -> list[str]:
-    """Return all image file paths inside dir_path (non-recursive)."""
-    result = []
-    try:
-        for entry in os.scandir(dir_path):
-            if entry.is_file() and Path(entry.path).suffix.lower() in IMAGE_EXTENSIONS:
-                result.append(entry.path)
-    except OSError:
-        pass
-    return result

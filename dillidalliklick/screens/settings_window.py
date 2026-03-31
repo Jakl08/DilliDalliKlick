@@ -1,13 +1,13 @@
 """Settings window – configure game parameters before starting."""
 
-from PyQt6.QtCore import Qt
+from collections.abc import Callable
+
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QMainWindow,
     QMessageBox,
     QPushButton,
     QRadioButton,
@@ -16,16 +16,24 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from dillidalliklick.logic.game_logic import GameConfig
+from dillidalliklick.logic.settings_logic import SettingsLogic
+from dillidalliklick.store import StoreData
 
-class SettingsWindow(QMainWindow):
+
+class SettingsWindow(QWidget):
     """Game configuration screen."""
 
-    def __init__(self, app_state: dict, parent_window) -> None:
+    def __init__(
+        self,
+        app_state: StoreData,
+        on_back: Callable[[], None],
+        on_start_game: Callable[[GameConfig], None],
+    ) -> None:
         super().__init__()
-        self._state = app_state
-        self._parent_window = parent_window
-        self.setWindowTitle("DilliDalliKlick – Einstellungen")
-        self.setMinimumSize(640, 560)
+        self._logic = SettingsLogic(app_state)
+        self._on_back = on_back
+        self._on_start_game = on_start_game
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -39,15 +47,6 @@ class SettingsWindow(QMainWindow):
         toolbar.setFixedHeight(56)
         tb_layout = QHBoxLayout(toolbar)
         tb_layout.setContentsMargins(16, 0, 16, 0)
-
-        title = QLabel("⚙️  Einstellungen")
-        title_font = QFont()
-        title_font.setPointSize(14)
-        title_font.setBold(True)
-        title.setFont(title_font)
-        title.setStyleSheet("color:#e94560;")
-        tb_layout.addWidget(title)
-        tb_layout.addStretch()
 
         back_btn = QPushButton("← Menü")
         back_btn.clicked.connect(self._go_back)
@@ -152,58 +151,45 @@ class SettingsWindow(QMainWindow):
         content_layout.addWidget(start_btn)
 
         # Root
-        root = QWidget()
-        root_layout = QVBoxLayout(root)
+        root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
         root_layout.addWidget(toolbar)
         root_layout.addWidget(content)
-        self.setCentralWidget(root)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
+    def refresh_books(self) -> None:
+        self._populate_books()
+
     def _populate_books(self) -> None:
         self._book_combo.clear()
         self._book_combo.addItem("– Fotobuch auswählen –", None)
-        for book_id, book in self._state.get("photobooks", {}).items():
-            count = len(book.get("photos", []))
-            self._book_combo.addItem(f"{book['name']}  ({count} Fotos)", book_id)
+        for book_id, name, count in self._logic.book_options():
+            self._book_combo.addItem(f"{name}  ({count} Fotos)", book_id)
 
     def _start_game(self) -> None:
-        book_id = self._book_combo.currentData()
-        if book_id is None:
-            QMessageBox.warning(self, "Kein Fotobuch", "Bitte ein Fotobuch auswählen.")
-            return
-        book = self._state["photobooks"].get(book_id)
-        if not book or not book.get("photos"):
-            QMessageBox.warning(self, "Leeres Fotobuch", "Das gewählte Fotobuch enthält keine Fotos.")
+        try:
+            config = self._logic.build_game_config(
+                book_id=self._book_combo.currentData(),
+                photo_count=self._photo_count_spin.value(),
+                cols=self._cols_spin.value(),
+                rows=self._rows_spin.value(),
+                timer_mode=self._radio_timer.isChecked(),
+                interval=self._interval_spin.value(),
+            )
+        except ValueError as exc:
+            title = "Kein Fotobuch" if "auswählen" in str(exc) else "Leeres Fotobuch"
+            QMessageBox.warning(self, title, str(exc))
             return
 
-        config = {
-            "book_id": book_id,
-            "photos": list(book["photos"]),
-            "photo_count": self._photo_count_spin.value(),
-            "cols": self._cols_spin.value(),
-            "rows": self._rows_spin.value(),
-            "mode": "timer" if self._radio_timer.isChecked() else "click",
-            "interval": self._interval_spin.value(),
-        }
-
-        from dillidalliklick.game_window import GameWindow
-        self._game_win = GameWindow(config, self)
-        self._game_win.show()
-        self.hide()
+        self._on_start_game(config)
 
     # ------------------------------------------------------------------
     # Navigation
     # ------------------------------------------------------------------
 
     def _go_back(self) -> None:
-        self._parent_window.show()
-        self.close()
-
-    def closeEvent(self, event):
-        self._parent_window.show()
-        super().closeEvent(event)
+        self._on_back()

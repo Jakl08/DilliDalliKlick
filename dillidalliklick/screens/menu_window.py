@@ -1,18 +1,23 @@
 """Main menu window."""
 
+from collections.abc import Callable
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
 
 
-class MenuWindow(QMainWindow):
+class MenuWindow(QWidget):
     """Application entry screen with navigation buttons."""
 
-    def __init__(self, app_state: dict) -> None:
+    def __init__(
+        self,
+        on_open_settings: Callable[[], None],
+        on_open_photobooks: Callable[[], None],
+    ) -> None:
         super().__init__()
-        self._app_state = app_state
-        self.setWindowTitle("DilliDalliKlick")
-        self.setMinimumSize(800, 600)
+        self._on_open_settings = on_open_settings
+        self._on_open_photobooks = on_open_photobooks
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -20,10 +25,7 @@ class MenuWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        central = QWidget()
-        self.setCentralWidget(central)
-
-        root = QVBoxLayout(central)
+        root = QVBoxLayout(self)
         root.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.setSpacing(0)
         root.setContentsMargins(40, 40, 40, 40)
@@ -44,30 +46,14 @@ class MenuWindow(QMainWindow):
         root.addWidget(subtitle)
 
         btn_start = self._make_button("▶  Spiel starten", "primary", 240, 54)
-        btn_start.clicked.connect(self._open_settings)
+        btn_start.clicked.connect(self._on_open_settings)
         root.addWidget(btn_start, alignment=Qt.AlignmentFlag.AlignCenter)
 
         root.addSpacing(14)
 
         btn_books = self._make_button("📚  Fotobücher verwalten", "info", 240, 54)
-        btn_books.clicked.connect(self._open_photobooks)
+        btn_books.clicked.connect(self._on_open_photobooks)
         root.addWidget(btn_books, alignment=Qt.AlignmentFlag.AlignCenter)
-
-    # ------------------------------------------------------------------
-    # Navigation
-    # ------------------------------------------------------------------
-
-    def _open_settings(self) -> None:
-        from dillidalliklick.settings_window import SettingsWindow
-        self._settings_win = SettingsWindow(self._app_state, self)
-        self._settings_win.show()
-        self.hide()
-
-    def _open_photobooks(self) -> None:
-        from dillidalliklick.photobook_window import PhotobookWindow
-        self._pb_win = PhotobookWindow(self._app_state, self)
-        self._pb_win.show()
-        self.hide()
 
     # ------------------------------------------------------------------
     # Helpers
