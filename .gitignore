@@ -1,5 +1,17 @@
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
 dist/
+build/
+.venv/
+venv/
+
+# Node / Electron (removed)
+node_modules/
 out/
+
+# OS
 .DS_Store
 *.log
