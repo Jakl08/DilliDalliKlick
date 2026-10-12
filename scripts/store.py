@@ -8,13 +8,15 @@ import tempfile
 import threading
 from pathlib import Path
 from typing import Any, TypedDict, cast
-from dillidalliklick.constants import strings
+from scripts.constants import strings
 
 _lock = threading.Lock()
 
+# Class to represent the structure of the store data
 class StoreData(TypedDict):
     photobooks: dict[str, Any]
 
+# 
 def _data_dir() -> Path:
     """Return the platform-appropriate user-data directory."""
     if os.name == "nt":

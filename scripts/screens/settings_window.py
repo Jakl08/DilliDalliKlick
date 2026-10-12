@@ -16,10 +16,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dillidalliklick.logic.game_logic import GameConfig
-from dillidalliklick.logic.settings_logic import SettingsLogic
-from dillidalliklick.store import StoreData
-from dillidalliklick.constants import theme
+from scripts.logic.game_logic import GameConfig
+from scripts.logic.settings_logic import SettingsLogic
+from scripts.store import StoreData
+from scripts.constants import theme
 
 
 class SettingsWindow(QWidget):

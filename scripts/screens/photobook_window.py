@@ -23,9 +23,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dillidalliklick.logic.photobook_logic import PhotobookLogic
-from dillidalliklick.store import StoreData
-from dillidalliklick.constants import theme
+from scripts.logic.photobook_logic import PhotobookLogic
+from scripts.store import StoreData
+from scripts.constants import theme
 
 
 class PhotobookWindow(QWidget):

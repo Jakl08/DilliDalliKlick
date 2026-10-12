@@ -1,7 +1,7 @@
 """Settings/business logic for building game configuration."""
 
-from dillidalliklick.logic.game_logic import GameConfig
-from dillidalliklick.store import StoreData
+from scripts.logic.game_logic import GameConfig
+from scripts.store import StoreData
 
 
 class SettingsLogic:

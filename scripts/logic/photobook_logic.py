@@ -5,8 +5,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from dillidalliklick import store
-from dillidalliklick.store import StoreData
+from scripts import store
+from scripts.store import StoreData
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"}
 

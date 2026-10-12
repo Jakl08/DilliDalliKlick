@@ -15,8 +15,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from dillidalliklick.logic.game_logic import BoardState, GameConfig, GameSession
-from dillidalliklick.constants import theme
+from scripts.logic.game_logic import BoardState, GameConfig, GameSession
+from scripts.constants import theme
 
 
 class GameWindow(QWidget):

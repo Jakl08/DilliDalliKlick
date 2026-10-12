@@ -6,7 +6,7 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFont
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
 
-from dillidalliklick.constants import theme
+from scripts.constants import theme
 
 
 class MenuWindow(QWidget):
